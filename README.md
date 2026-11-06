@@ -4,13 +4,13 @@ Dự án học cách xây dựng AI Agent thông qua ứng dụng lập kế ho�
 
 ## Trạng thái hiện tại
 
-**Dự án đang ở giai đoạn thiết lập, chưa có ứng dụng hoặc agent chạy được.**
+**Đã hoàn thành Task 01–04: thiết kế đầu vào, thiết lập môi trường, xây model và kiểm thử đầu vào. Chưa có agent hoặc web chạy được.**
 
-- Đã chốt phạm vi MVP và hoàn thành bài thiết kế đầu vào (Task 01).
-- Đang chuẩn bị môi trường phát triển (Task 02).
-- Đã xác nhận qua terminal: Ubuntu 22.04 chạy WSL 2, Python 3.10.12 và Git 2.34.1.
-- Chưa xác nhận hoàn tất môi trường ảo và kết nối VS Code với thư mục dự án trong WSL.
-- Chưa tích hợp Gemini/Tavily, chưa có dependency ứng dụng hoặc bộ kiểm thử.
+- Task 01: chốt phạm vi MVP và các trường đầu vào.
+- Task 02: môi trường Ubuntu WSL 2, Python 3.10.12, Git và `.venv` đã hoạt động.
+- Task 03: `TravelPreferences` dùng Pydantic để chuẩn hóa, kiểm tra dữ liệu và tính ngày về.
+- Task 04: 20 phương thức kiểm thử bằng `unittest` đã đạt trong WSL ngày 06/11/2026.
+- Chưa tích hợp Gemini/Tavily; chưa gọi API thật, chưa triển khai agent hoặc UI.
 
 ## Phạm vi MVP
 
@@ -27,17 +27,27 @@ MVP chưa bao gồm đặt vé, đặt phòng, thanh toán, tài khoản ngườ
 
 ## Dữ liệu đầu vào
 
-| Trường | Kiểu Python dự kiến | Quy tắc |
+| Trường | Kiểu Python | Quy tắc hiện tại |
 | --- | --- | --- |
-| `origin_city` | `str` | Không rỗng; thành phố trong châu Âu |
+| `origin_city` | `str` | Bỏ khoảng trắng hai đầu; không rỗng; khác điểm đến khi so sánh không phân biệt chữ hoa–thường |
 | `destination_city` | `str` | Paris, Lyon hoặc Strasbourg; khác điểm xuất phát |
-| `departure_date` | `date` | Không nằm trong quá khứ |
+| `departure_day` | `date` | Từ hôm nay trở đi; nhận đối tượng `date` hoặc chuỗi ISO `YYYY-MM-DD` hợp lệ |
 | `duration_days` | `int` | Từ 2 đến 7 |
 | `num_adults` | `int` | Ít nhất 1 |
 | `total_budget_eur` | `int` | Lớn hơn 0; nhận số EUR nguyên cho cả nhóm |
-| `additional_preferences` | `str \| None` | Tùy chọn; tối đa 1.000 ký tự |
+| `additional_preferences` | `str \| None` | Tùy chọn; bỏ khoảng trắng hai đầu; rỗng thành `None`; tối đa 1.000 ký tự sau chuẩn hóa |
 
-Ngày về được tính bằng ngày khởi hành cộng `duration_days - 1`, không yêu cầu nhập riêng.
+Ngày về đọc qua property `trip.return_date`, được tính bằng `departure_day + timedelta(days=duration_days - 1)`, không yêu cầu nhập riêng. `return_date` hiện là Python property, không tự xuất hiện trong `model_dump()`.
+
+Tên ngày khởi hành trong code và test hiện tại là `departure_day` (thiết kế ban đầu gọi là `departure_date`). Dùng `departure_day` khi tạo đối tượng.
+
+### Giới hạn hiện tại
+
+- Chưa xác minh `origin_city` là thành phố có thật hoặc thuộc châu Âu; đây vẫn là phạm vi sản phẩm, chưa là ràng buộc được model thực thi.
+- `destination_city` phải đúng cách viết Paris, Lyon hoặc Strasbourg sau khi bỏ khoảng trắng; chưa tự chuẩn hóa `paris` thành `Paris`.
+- Ngày hôm nay dựa trên `date.today()` và múi giờ hệ điều hành WSL.
+- Chưa bật strict mode: Pydantic có thể chuyển đổi một số kiểu đầu vào. Bộ test hiện tại chưa cam kết từ chối mọi trường hợp ép kiểu.
+
 
 Ngân sách gồm đi/về, lưu trú, ăn uống, đi lại nội thành, vé tham quan và khoản dự phòng 10% nằm trong tổng ngân sách. Dữ liệu đầu vào hợp lệ chưa đồng nghĩa ngân sách đủ thực hiện chuyến đi.
 
@@ -62,7 +72,7 @@ Supervisor ban đầu là code điều phối. Evaluator dùng Python để tín
 
 Sử dụng **Windows + Ubuntu trong WSL 2 + VS Code**. Python, Git và môi trường ảo của dự án chạy trong Ubuntu.
 
-Thư mục làm việc dự kiến trong WSL: `/home/quy/projects/travel-planner`. Các lệnh dưới đây chạy trong terminal Ubuntu, tại thư mục gốc của bản dự án bạn đang sử dụng:
+Thư mục dự án chính trong WSL: `/home/quy/projects/travel-planner`. Các lệnh dưới đây chạy trong terminal Ubuntu, tại thư mục gốc của bản dự án bạn đang sử dụng:
 
 ```bash
 python3 -m venv .venv
@@ -74,11 +84,61 @@ python -m pip --version
 
 Nếu `.venv` đã được tạo thành công, chỉ cần kích hoạt và kiểm tra, không cần tạo lại. Python được chọn phải nằm trong `.venv/bin/python` của dự án.
 
-Hiện chưa có `requirements.txt`, entrypoint ứng dụng hoặc bộ kiểm thử, nên chưa có lệnh cài dependency, chạy web hay chạy test. Các hướng dẫn đó sẽ được bổ sung khi chức năng tương ứng được xây dựng.
+Cài dependency đã khóa phiên bản trong môi trường ảo:
 
-## Tổ chức mã nguồn dự kiến
+```bash
+cd /home/quy/projects/travel-planner
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
 
-Các thư mục dưới đây sẽ được tạo dần theo task, chưa phải cấu trúc đã triển khai:
+`requirements.txt` ghi các phiên bản thực tế đang cài tại thời điểm chốt Task 04, gồm Pydantic 2.14.3 và các dependency của nó. `unittest` có sẵn trong Python. Chưa có entrypoint agent hoặc web.
+
+## Chạy kiểm thử đầu vào
+
+Chạy từ thư mục gốc dự án trong Ubuntu WSL:
+
+```bash
+cd /home/quy/projects/travel-planner
+source .venv/bin/activate
+PYTHONPATH=src python -m unittest discover -s tests -v
+```
+
+`PYTHONPATH=src` giúp Python tìm package `travel_planner` trong thư mục `src`. Mỗi lần chạy test là một phiên Python mới, không cần `importlib.reload()`.
+
+Kết quả xác minh ngày 06/11/2026: **20 test, OK**. Đây là kiểm thử offline của model; không gọi Gemini, Tavily hoặc dịch vụ bên ngoài.
+
+Bộ kiểm thử bao phủ:
+
+- Dữ liệu hợp lệ, ngày đi hôm nay và cả ba điểm đến.
+- Thời lượng 2–7 ngày; từ chối 1 và 8 ngày.
+- Số người, ngân sách phải dương; chấp nhận giá trị tối thiểu 1.
+- Ngày quá khứ; chuyển chuỗi ISO hợp lệ sang `date`; từ chối ngày sai, rỗng và `None`.
+- Thành phố trùng nhau, kể cả khác chữ hoa–thường hoặc có khoảng trắng.
+- Điểm xuất phát rỗng và điểm đến ngoài phạm vi.
+- Bỏ khoảng trắng; sở thích rỗng thành `None`; giới hạn 1.000/1.001 ký tự.
+- Ngày về cho thời lượng hợp lệ và chuyến đi qua cuối tháng/cuối năm.
+
+### Cấu trúc đã có
+
+```text
+travel-planner/
+├── README.md
+├── rule.md
+├── .gitignore
+├── check_setup.py
+├── requirements.txt
+├── src/travel_planner/
+│   ├── __init__.py
+│   └── models.py
+└── tests/
+    └── test_models.py
+```
+
+
+## Cấu trúc dự kiến cho các chặng tiếp theo
+
+Sơ đồ dưới đây bao gồm cả các thành phần chưa triển khai; sẽ tạo dần theo task:
 
 ```text
 travel-planner/
