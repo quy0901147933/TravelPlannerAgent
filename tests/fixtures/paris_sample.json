@@ -1,0 +1,24 @@
+{
+  "destination_city": "Paris",
+  "dates": ["2030-12-20", "2030-12-21"],
+  "activities": [
+    {
+      "name": "Tham quan bảo tàng mẫu",
+      "location": "Paris",
+      "duration_minutes": 120,
+      "estimated_cost_eur": 30
+    },
+    {
+      "name": "Đi dạo công viên mẫu",
+      "location": "Paris",
+      "duration_minutes": 60,
+      "estimated_cost_eur": 0
+    },
+    {
+      "name": "Tham quan triển lãm mẫu",
+      "location": "Paris",
+      "duration_minutes": 90,
+      "estimated_cost_eur": 15
+    }
+  ]
+}

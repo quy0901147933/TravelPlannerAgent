@@ -4,13 +4,19 @@ Dự án học cách xây dựng AI Agent thông qua ứng dụng lập kế ho�
 
 ## Trạng thái hiện tại
 
-**Đã hoàn thành Task 01–04: thiết kế đầu vào, thiết lập môi trường, xây model và kiểm thử đầu vào. Chưa có agent hoặc web chạy được.**
+**Đã hoàn thành Task 01–08 (Chặng 1–2): đầu vào, gọi LLM thật, lịch trình có cấu trúc và xử lý lỗi có kiểm thử. Chưa có agent hoặc web chạy được.**
 
 - Task 01: chốt phạm vi MVP và các trường đầu vào.
 - Task 02: môi trường Ubuntu WSL 2, Python 3.10.12, Git và `.venv` đã hoạt động.
 - Task 03: `TravelPreferences` dùng Pydantic để chuẩn hóa, kiểm tra dữ liệu và tính ngày về.
 - Task 04: 20 phương thức kiểm thử bằng `unittest` đã đạt trong WSL ngày 06/11/2026.
-- Chưa tích hợp Gemini/Tavily; chưa gọi API thật, chưa triển khai agent hoặc UI.
+- Task 05: đã dùng SDK `groq` với model `openai/gpt-oss-20b`; người học xác nhận nhận phản hồi từ API thật. Key đọc từ biến môi trường `GROQ_API_KEY`.
+- Chọn Groq Free + GPT-OSS thay cho Gemini; không tự kích hoạt trả phí.
+- Task 06: có Activity, TripDay, Itinerary và property tổng chi phí hoạt động.
+- Task 07: sinh lịch trình từ dữ liệu giả lập qua Groq, kiểm tra schema và đối chiếu dữ liệu mẫu; người học xác nhận tổng 45 EUR.
+- Task 08: xử lý lỗi qua cli(), kiểm thử offline bằng mock.
+- Tổng 64 test offline: 46 test model và 18 test tạo lịch trình/CLI.
+- Chưa tích hợp Tavily, tool calling, vòng lặp agent hoặc UI.
 
 ## Phạm vi MVP
 
@@ -59,7 +65,7 @@ Streamlit → Supervisor → Research Agent / Transport Agent
 ```
 
 - **Python + Pydantic:** logic và kiểm tra cấu trúc dữ liệu.
-- **Gemini API:** LLM cho nghiên cứu và lập lịch trình.
+- **Groq + GPT-OSS:** LLM hiện tại; Task 05 dùng `openai/gpt-oss-20b` qua SDK `groq`.
 - **Tavily:** tool tìm kiếm thông tin có nguồn.
 - **Streamlit:** form nhập yêu cầu và so sánh lịch trình.
 - **LangGraph:** bổ sung sau khi workflow Python hoạt động và được kiểm thử.
@@ -92,21 +98,44 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-`requirements.txt` ghi các phiên bản thực tế đang cài tại thời điểm chốt Task 04, gồm Pydantic 2.14.3 và các dependency của nó. `unittest` có sẵn trong Python. Chưa có entrypoint agent hoặc web.
+`requirements.txt` được đối chiếu với .venv khi chốt Task 08, gồm Pydantic 2.14.3, Groq SDK 1.7.0 và các dependency liên quan. `unittest` có sẵn trong Python. Chưa có entrypoint agent hoặc web.
 
-## Chạy kiểm thử đầu vào
+## Kiểm tra kết nối Groq — Task 05
+
+Chạy trong terminal Ubuntu WSL, tại thư mục gốc dự án:
+
+```bash
+cd /home/quy/projects/travel-planner
+source .venv/bin/activate
+read -rsp "Nhập Groq API key: " GROQ_API_KEY
+echo
+export GROQ_API_KEY
+python check_groq.py
+```
+
+Key được nhập ẩn, chỉ tồn tại trong terminal hiện tại và được SDK đọc từ biến môi trường. Đóng terminal thì cần nhập lại. Không ghi key vào code, Git, log hoặc chat. Chưa dùng file `.env`; Python không tự nạp file này.
+
+`check_groq.py` gửi một yêu cầu sinh văn bản thật đến `openai/gpt-oss-20b`, với timeout 20 giây và không tự retry. Người học đã xác nhận chạy thành công; script này chỉ kiểm tra kết nối; structured output được thử riêng trong generate_itinerary.py. Chưa xác minh tool calling hoặc chất lượng lịch trình thực tế.
+
+`tests/test_api.py` là script kiểm tra API thủ công, có gọi mạng; không tính là một trong 20 test offline. Chạy riêng khi cần:
+
+```bash
+python tests/test_api.py
+```
+
+## Chạy kiểm thử model
 
 Chạy từ thư mục gốc dự án trong Ubuntu WSL:
 
 ```bash
 cd /home/quy/projects/travel-planner
 source .venv/bin/activate
-PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src:. python -m unittest discover -s tests -p test_models.py -v
 ```
 
 `PYTHONPATH=src` giúp Python tìm package `travel_planner` trong thư mục `src`. Mỗi lần chạy test là một phiên Python mới, không cần `importlib.reload()`.
 
-Kết quả xác minh ngày 06/11/2026: **20 test, OK**. Đây là kiểm thử offline của model; không gọi Gemini, Tavily hoặc dịch vụ bên ngoài.
+Kết quả xác minh ngày 06/11/2026: **20 test, OK**. Đây là kiểm thử offline của model; không gọi Groq, Tavily hoặc dịch vụ bên ngoài. Sau Task 05, ảnh terminal người học cung cấp tiếp tục xác nhận 20 test OK và `git diff --check` không báo lỗi.
 
 Bộ kiểm thử bao phủ:
 
@@ -127,12 +156,18 @@ travel-planner/
 ├── rule.md
 ├── .gitignore
 ├── check_setup.py
+├── check_groq.py
+├── check_itinerary.py
+├── generate_itinerary.py
 ├── requirements.txt
 ├── src/travel_planner/
 │   ├── __init__.py
 │   └── models.py
 └── tests/
-    └── test_models.py
+    ├── fixtures/paris_sample.json
+    ├── test_models.py
+    ├── test_generate_itinerary.py
+    └── test_api.py
 ```
 
 
@@ -159,7 +194,7 @@ travel-planner/
 └── tests/fixtures/
 ```
 
-`integrations/` chứa giao tiếp Gemini/Tavily; UI và logic nghiệp vụ không phụ thuộc trực tiếp vào SDK. `prompts/` lưu prompt, `tests/fixtures/` lưu dữ liệu kiểm thử cố định.
+`integrations/` chứa giao tiếp Groq/Tavily; UI và logic nghiệp vụ không phụ thuộc trực tiếp vào SDK. `prompts/` lưu prompt, `tests/fixtures/` lưu dữ liệu kiểm thử cố định.
 
 ## Cách phát triển và kiểm chứng
 
@@ -176,3 +211,36 @@ Làm từng task nhỏ: người học tự viết, AI hướng dẫn và review
 Sau mỗi task đã kiểm tra, người học chủ động tạo commit. Đánh dấu phiên bản ổn định trước thay đổi lớn; ghi phiên bản Python và khóa phiên bản thư viện. Quản lý prompt và dữ liệu kiểm thử bằng Git. AI không tự commit nếu chưa được yêu cầu.
 
 Quy ước phát triển sẽ được ghi trong [rule.md](rule.md). Không đưa `.venv/`, `.env`, API key, mật khẩu hoặc dữ liệu cá nhân không cần thiết vào Git hay log. Chỉ cấu hình API key khi đến task tích hợp; không dán bí mật vào chat.
+
+## Task 06–08: lịch trình có cấu trúc và xử lý lỗi
+
+- Task 06: `Activity`, `TripDay`, `Itinerary` và property tổng chi phí hoạt động; 46 test model offline đạt.
+- Task 07: người học đã xác nhận Groq sinh lịch trình mẫu đúng schema và dữ liệu nguồn, tổng 45 EUR. Dữ liệu giả lập không phải nghiên cứu du lịch thực tế.
+- Task 08: `main()` kiểm tra đầu ra; `cli()` bắt lỗi thiếu key, file/JSON mẫu, timeout, kết nối, HTTP, JSON/schema đầu ra và dữ liệu khác mẫu; lỗi được in vào stderr và thoát mã 1. SDK không tự retry.
+- Xác minh ngày 11/11/2026: 18 test tạo lịch trình/CLI offline đạt bằng mock, tách biệt với API thật. Test bao phủ mã thoát, thông báo, HTTP 401/403/429/500, dữ liệu thiếu/lặp/thay đổi và luồng thành công.
+- Chưa kiểm tra chồng giờ hoặc tính khả thi du lịch thực tế; schema hiện tại chưa thực thi các quy tắc này.
+
+Chạy hai bộ test offline, tránh script gọi mạng thủ công `tests/test_api.py`:
+
+```bash
+PYTHONPATH=src:. python -m unittest discover -s tests -p test_models.py -v
+PYTHONPATH=src:. python -m unittest discover -s tests -p test_generate_itinerary.py -v
+```
+
+## Chạy lịch trình mẫu
+
+Kiểm tra model bằng dữ liệu cố định, không gọi mạng:
+
+```bash
+PYTHONPATH=src python check_itinerary.py
+```
+
+Sinh lịch trình qua API thật (cần GROQ_API_KEY trong terminal hiện tại):
+
+```bash
+PYTHONPATH=src python generate_itinerary.py
+```
+
+Dữ liệu nằm ở tests/fixtures/paris_sample.json. Script dùng JSON Schema ở chế độ strict=False, sau đó Pydantic kiểm tra JSON/schema và Python đối chiếu điểm đến, ngày, số lần xuất hiện cùng tên/địa điểm/thời lượng/chi phí hoạt động. Tổng chi phí chỉ gồm hoạt động; chưa bao gồm đầy đủ lưu trú, vận chuyển hoặc dự phòng.
+
+Không chạy discovery toàn bộ tests/ khi chỉ muốn kiểm thử offline: tests/test_api.py là script gọi mạng thủ công.

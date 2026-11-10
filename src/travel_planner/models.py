@@ -1,6 +1,7 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, time
 from pydantic import BaseModel , Field , field_validator , model_validator
 from typing import Literal
+
 
 class TravelPreferences(BaseModel):
     duration_days: int = Field(ge=2 , le=7)
@@ -42,6 +43,38 @@ class TravelPreferences(BaseModel):
     @property
     def return_date(self) -> date:
         return self.departure_day + timedelta(days=self.duration_days - 1)
+
+
+class Activity(BaseModel):
+    name: str = Field(min_length=1)
+    location: str = Field(min_length=1)
+    start_time: time 
+    duration_minutes: int = Field(gt=0)
+    estimated_cost_eur: float = Field(ge=0, allow_inf_nan=False)
+class TripDay(BaseModel):
+    date: date 
+    activities: list[Activity] = Field(min_length=1)
+class Itinerary(BaseModel):
+    title: str = Field(min_length=1)
+    destination_city: Literal["Paris" , "Lyon" , "Strasbourg"]
+    days: list[TripDay] = Field(min_length=2, max_length=7)
+    @property
+    def total_estimated_cost_eur(self) -> float:
+        return sum(
+        (
+            activity.estimated_cost_eur
+            for day in self.days
+            for activity in day.activities
+        ),
+        0.0,
+    )
+        
+
+
+
+
+
+
 
     
     
