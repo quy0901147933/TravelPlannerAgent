@@ -2,6 +2,8 @@
 
 Dự án học cách xây dựng AI Agent thông qua ứng dụng lập kế hoạch du lịch: nhận yêu cầu của du khách, nghiên cứu thông tin và đề xuất lịch trình phù hợp với ngân sách.
 
+Đặc tả và tiêu chí nghiệm thu Chặng 1 (Task 01–04): [SPEC.md](SPEC.md).
+
 ## Trạng thái hiện tại
 
 **Đã hoàn thành Task 01–08 (Chặng 1–2): đầu vào, gọi LLM thật, lịch trình có cấu trúc và xử lý lỗi có kiểm thử. Chưa có agent hoặc web chạy được.**
