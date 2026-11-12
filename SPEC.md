@@ -4,6 +4,8 @@ Ngày đối chiếu code và kiểm thử: **13/11/2026**. Phạm vi: **Task 01
 
 Đây là đặc tả hành vi đã triển khai, kèm giới hạn chưa triển khai; không phải cam kết toàn bộ MVP đã hoạt động. Code hiện có thêm Chặng 2 (Task 05–08), nhưng các model lịch trình, Groq và CLI của Chặng 2 không thuộc tiêu chí nghiệm thu tài liệu này.
 
+**Tra cứu Task 01–02:** quy ước đầu vào ở tài liệu này; thông số WSL/Python/Git, cách mở lại dự án và khôi phục môi trường ở mục 2–3 của [bản tổng hợp hai chặng](SPEC_STAGE_2.md). Bản tổng hợp cũng giữ nguyên đặc tả chi tiết Task 05–08 và kết quả 64 test offline ngày 13/11/2026.
+
 ## 1. Bảng đặc tả tổng quan
 
 | Thành phần | Đặc tả Chặng 1 | Bằng chứng / giới hạn |
