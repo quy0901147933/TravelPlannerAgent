@@ -1,177 +1,148 @@
-# SPEC — Chặng 1: đầu vào và nền tảng Python
+# SPEC — Chặng 2: Gọi LLM và tạo kết quả có cấu trúc
 
-Ngày đối chiếu code và kiểm thử: **13/11/2026**. Phạm vi: **Task 01–04**, trọng tâm `TravelPreferences` (Task 03) và kiểm thử đầu vào (Task 04).
+Ngày đối chiếu code: 13/11/2026. Phạm vi: Task 05–08.
+Tài liệu mô tả hành vi đã triển khai; các giới hạn được ghi riêng, không coi prompt là bằng chứng kiểm tra.
 
-Đây là đặc tả hành vi đã triển khai, kèm giới hạn chưa triển khai; không phải cam kết toàn bộ MVP đã hoạt động. Code hiện có thêm Chặng 2 (Task 05–08), nhưng các model lịch trình, Groq và CLI của Chặng 2 không thuộc tiêu chí nghiệm thu tài liệu này.
+## 1. Tổng quan
 
-## 1. Bảng đặc tả tổng quan
+| Thành phần | Đặc tả |
+| --- | --- |
+| Goal | Kết nối LLM an toàn, biến dữ liệu du lịch giả lập thành lịch trình có cấu trúc, xác thực bằng Python và xử lý các lỗi dự kiến có kiểm soát. |
+| Inputs | Biến môi trường GROQ_API_KEY và file JSON UTF-8 tests/fixtures/paris_sample.json. |
+| Outputs | Itinerary hợp lệ, JSON in ra stdout và tổng chi phí hoạt động in riêng; lỗi dự kiến ra stderr và mã thoát 1. |
+| Edge cases | Thiếu key/file, JSON sai, thiếu trường, dữ liệu ngoài giới hạn, nội dung rỗng, sai dữ liệu nguồn, timeout/kết nối/HTTP. |
+| Performance constraints | Một lời gọi sinh lịch trình mỗi lần chạy hợp lệ; timeout SDK 30 giây, max_retries=0, max_completion_tokens=2048. Chưa có SLA hoặc benchmark tải. |
+| Acceptance criteria | Schema hợp lệ, đối chiếu đúng dữ liệu nguồn, xử lý lỗi đúng nhánh; 46 test model và 18 test main/CLI đạt. Lần gọi thật do người học xác nhận riêng. |
 
-| Thành phần | Đặc tả Chặng 1 | Bằng chứng / giới hạn |
+Luồng: JSON mẫu → prompt + JSON Schema → Groq → chuỗi JSON → Pydantic → đối chiếu Python → hiển thị.
+
+## 2. Phạm vi từng task
+
+| Task | Đã triển khai | Bằng chứng và giới hạn |
 | --- | --- | --- |
-| **Goal — mục tiêu cấp cao** | Biến yêu cầu chuyến đi thành dữ liệu có cấu trúc, chuẩn hóa và kiểm tra được bằng Python trước khi chuyển cho LLM hoặc agent. Người học hiểu đầu vào, validation và kiểm thử tự động. | Task 01 xác định yêu cầu; Task 02 chuẩn bị môi trường; Task 03 xây model; Task 04 kiểm chứng hành vi. |
-| **Inputs — định dạng đầu vào** | Dictionary Python truyền bằng `TravelPreferences(**data)`; sáu trường bắt buộc và một trường tùy chọn. Ngày nhận `date` hoặc chuỗi ISO hợp lệ `YYYY-MM-DD`. | Bảng trường chi tiết ở mục 3. Tên thực tế là `departure_day`, không phải `departure_date`. |
-| **Outputs — định dạng đầu ra** | Thành công: đối tượng `TravelPreferences` đã chuẩn hóa, có `return_date` được tính khi truy cập. Thất bại: `pydantic.ValidationError` có vị trí và loại lỗi. | Không trả lịch trình, giá vé, phòng hay ba phương án du lịch trong Chặng 1. |
-| **Edge cases — trường hợp biên** | Ngày hôm nay/quá khứ, 1–2–7–8 ngày, số người và ngân sách bằng 0/âm/tối thiểu 1, chuỗi rỗng/khoảng trắng, sở thích 1.000/1.001 ký tự, cùng thành phố khác hoa–thường, ngày về qua tháng/năm. | 20 phương thức kiểm thử của `TestTravelPreferences`; một phương thức có thể chứa nhiều `subTest`. |
-| **Performance constraints — ràng buộc hiệu năng** | Validation và tính ngày về chạy cục bộ; không cần key, mạng, LLM hoặc dịch vụ ngoài. Không retry, tìm kiếm hay vòng lặp agent trong Chặng 1. Sở thích sau chuẩn hóa tối đa 1.000 ký tự. | Chưa đặt hoặc đo SLA latency, throughput, RAM hay tải đồng thời; không coi thời gian chạy test là benchmark. Chưa có giới hạn độ dài tên thành phố, số người hoặc ngân sách tối đa. |
-| **Acceptance criteria — tiêu chí nghiệm thu** | Toàn bộ AC01–AC20 ở mục 6 phải đạt bằng test offline. Môi trường và lệnh chạy được ghi để có thể kiểm tra lại. | Ngày 13/11/2026: 20/20 test đầu vào đạt; 46 test model và 18 test CLI/tạo lịch trình cũng đạt, nhưng 44 test còn lại thuộc Chặng 2. |
+| 05 | Groq SDK 1.7.0, openai/gpt-oss-20b, key từ môi trường; check_groq.py | Người học xác nhận API thật phản hồi; không bật trả phí. Đây là thay đổi đã thống nhất so với lựa chọn Gemini ban đầu. |
+| 06 | Activity, TripDay, Itinerary, property tổng tiền; check_itinerary.py | 46 test model gồm 20 test TravelPreferences cũ và 26 test mới. |
+| 07 | generate_itinerary.py đọc fixture, gửi prompt, schema strict=False, validate JSON và đối chiếu dữ liệu bằng Counter | Người học xác nhận kết quả thật 45 EUR và kiểm tra mẫu thành công; không phải đánh giá chất lượng du lịch. |
+| 08 | main() và cli(), bắt lỗi dự kiến, stderr, exit 1; test offline bằng mock | 18 test bao gồm các subTest; không gọi API thật trong bộ test. |
 
-## 2. Kết quả từng task
+## 3. Inputs
 
-| Task | Mục tiêu | Sản phẩm đã có | Trạng thái |
-| --- | --- | --- | --- |
-| 01 — Thiết kế đầu vào | Xác định dữ liệu cần hỏi, quy tắc hợp lệ và phạm vi chuyến đi. | Bảy trường đầu vào, ngân sách EUR cho cả nhóm, thời lượng gồm ngày đi và ngày về; ngày về không nhập riêng. | Hoàn thành thiết kế; quy tắc xuất phát trong châu Âu chưa được xác minh bằng code. |
-| 02 — Chuẩn bị dự án | Có môi trường Python và quản lý phiên bản để học và phát triển. | Dự án `/home/quy/projects/travel-planner`, Ubuntu WSL 2, `.venv`, Git, `.gitignore`, README, rule và dependency đã ghi trong `requirements.txt`. | Đã thiết lập; trạng thái push cần kiểm tra qua Git, không suy ra từ việc có commit cục bộ. |
-| 03 — Xây TravelPreferences | Mô hình hóa, chuẩn hóa và từ chối dữ liệu vi phạm quy tắc. | `src/travel_planner/models.py`: fields, field validators, model validator và property `return_date`. | Hoàn thành trong giới hạn mục 8. |
-| 04 — Kiểm thử đầu vào | Chứng minh dữ liệu đúng/sai và các giá trị biên được xử lý như mong muốn. | `tests/test_models.py`, class `TestTravelPreferences`: 20 test offline bằng `unittest`. | 20/20 đạt khi đối chiếu 13/11/2026. |
-
-Phạm vi MVP làm bối cảnh: Paris/Lyon/Strasbourg, một điểm đến mỗi chuyến, 2–7 ngày, người lớn, ngân sách EUR cho cả nhóm gồm đi/về và chi phí trong chuyến. Ba phương án Tiết kiệm/Cân bằng/Trải nghiệm, giá có nguồn, không đặt vé/phòng/thanh toán là mục tiêu sản phẩm về sau, chưa phải đầu ra Chặng 1.
-
-## 3. Inputs — hợp đồng dữ liệu
-
-| Trường | Kiểu sau validation | Bắt buộc / mặc định | Quy tắc đã thực thi |
-| --- | --- | --- | --- |
-| `origin_city` | `str` | Bắt buộc | Bỏ khoảng trắng hai đầu bằng `strip()`; độ dài ít nhất 1; không trùng điểm đến khi so sánh bằng `casefold()`. Chưa xác minh thành phố có thật hoặc thuộc châu Âu. |
-| `destination_city` | `Literal["Paris", "Strasbourg", "Lyon"]` | Bắt buộc | Bỏ khoảng trắng hai đầu, sau đó phải đúng một trong ba tên và đúng chữ hoa–thường. |
-| `departure_day` | `datetime.date` | Bắt buộc | Pydantic kiểm tra/chuyển kiểu trước; validator từ chối ngày nhỏ hơn `date.today()`. Ngày hôm nay hợp lệ. |
-| `duration_days` | `int` | Bắt buộc | Từ 2 đến 7, gồm cả hai biên. Đếm ngày đi là ngày đầu. |
-| `num_adults` | `int` | Bắt buộc | Lớn hơn 0, tức ít nhất 1 người lớn. |
-| `total_budget_eur` | `int` | Bắt buộc | Lớn hơn 0; EUR nguyên cho cả nhóm. 1 EUR hợp lệ về cấu trúc, chưa chứng minh đủ chi phí chuyến đi. |
-| `additional_preferences` | `str` hoặc `None` | Tùy chọn, mặc định `None` | Bỏ khoảng trắng hai đầu; chuỗi rỗng sau chuẩn hóa trở thành `None`; chuỗi còn nội dung dài tối đa 1.000 ký tự sau chuẩn hóa. |
-
-**Ví dụ đầu vào** (ngày tạo tương đối để không hết hạn):
-
-```python
-from datetime import date, timedelta
-from travel_planner.models import TravelPreferences
-
-data = {
-    "origin_city": "  Bourges  ",
-    "destination_city": "  Paris  ",
-    "departure_day": (date.today() + timedelta(days=10)).isoformat(),
-    "duration_days": 3,
-    "num_adults": 2,
-    "total_budget_eur": 300,
-    "additional_preferences": "  Thích bảo tàng và đi bộ  ",
-}
-trip = TravelPreferences(**data)
-```
-
-Đầu vào là dictionary Python; ngày dạng chuỗi ISO ở ví dụ mô phỏng dữ liệu văn bản. Chặng 1 chưa cung cấp HTTP endpoint hoặc form UI. Không bật strict mode: không được suy diễn rằng mọi giá trị sai kiểu ban đầu đều bị từ chối; Pydantic có thể ép một số kiểu sang kiểu đầu ra.
-
-## 4. Outputs — kết quả và lỗi
-
-| Tình huống | Định dạng / cách đọc | Ý nghĩa |
+| Đầu vào | Định dạng | Quy tắc hiện tại |
 | --- | --- | --- |
-| Hợp lệ | Đối tượng `TravelPreferences`; đọc `trip.origin_city`, `trip.departure_day`, v.v. | Bảy trường đã chuẩn hóa và kiểm tra. Với ví dụ trên, tên thành phố là `Bourges`/`Paris`, sở thích bỏ khoảng trắng và ngày có kiểu `date`. |
-| Ngày về | `trip.return_date` có kiểu `date` | `departure_day + timedelta(days=duration_days - 1)`. Đi 3 ngày thì ngày về cách ngày đi 2 ngày. Không cần gọi `()` hoặc nhập ngày về. |
-| Dictionary đầu ra | `trip.model_dump()` | Bảy trường của model; ngày vẫn là đối tượng Python `date`. Property `return_date` không tự được đưa vào dictionary. |
-| JSON đầu ra nếu cần | `trip.model_dump_json()` | Pydantic có thể serialize các trường sang chuỗi JSON; ngày thành chuỗi. Đây không phải API riêng của ứng dụng và chưa có test serialize riêng cho TravelPreferences trong 20 test Chặng 1. |
-| Không hợp lệ | `ValidationError`; đọc `.errors()` | Danh sách thông tin lỗi. Kiểm thử tập trung vào `loc` và một số `type`, không cố định toàn bộ thông báo tiếng Anh của thư viện. |
+| GROQ_API_KEY | Biến môi trường, chuỗi không rỗng | Kiểm tra tồn tại trước khi tạo client; key đúng hay không do API xác thực. Không hardcode/commit key. |
+| destination_city | Chuỗi JSON | Output chỉ Paris/Lyon/Strasbourg và phải trùng fixture. |
+| dates | Danh sách chuỗi YYYY-MM-DD | Output phải có ngày trùng danh sách, giữ đúng thứ tự; số ngày output 2–7. |
+| activities | Danh sách object | Mỗi object có name, location, duration_minutes, estimated_cost_eur; model chọn start_time. |
+| Fixture | File cố định theo đường dẫn tương đối với script | Không có schema Pydantic riêng cho input fixture; thiếu khóa/sai cấu trúc tùy ý chưa được xử lý đầy đủ. |
 
-| Ví dụ lỗi | `loc` mong đợi | Loại lỗi / giải thích |
+Fixture hiện tại: Paris; 20–21/12/2030; ba hoạt động có chi phí 30, 0 và 15 EUR cho cả nhóm.
+TravelPreferences thuộc chặng trước, chưa được nối trực tiếp vào script sinh lịch trình.
+
+## 4. Outputs và schema
+
+| Model/trường | Kiểu | Ràng buộc đã thực thi |
 | --- | --- | --- |
-| 9 ngày | `("duration_days",)` | Vi phạm giới hạn lớn nhất 7. |
-| Ngày đã qua, kể cả chuỗi ISO | `("departure_day",)` | `type="value_error"` khi validator chủ động `raise ValueError(...)`. |
-| Chuỗi không phải ngày, ngày không tồn tại hoặc `None` | `("departure_day",)` | Pydantic phải trả ValidationError về ngày; không để TypeError do so sánh chuỗi/None với date thoát ra. |
-| Điểm đến Berlin | `("destination_city",)` | Không thuộc Literal ba điểm đến. |
-| Xuất phát PARIS, đến Paris | `()` | Lỗi toàn model do quan hệ giữa hai trường, không gán cho riêng một trường. |
+| Activity.name | str | Ít nhất 1 ký tự |
+| Activity.location | str | Ít nhất 1 ký tự |
+| Activity.start_time | datetime.time | Pydantic nhận giờ hợp lệ, ví dụ 09:00 |
+| Activity.duration_minutes | int | > 0 |
+| Activity.estimated_cost_eur | float | >= 0, hữu hạn; không NaN hoặc vô cực |
+| TripDay.date | datetime.date | Ngày hợp lệ |
+| TripDay.activities | list[Activity] | Ít nhất 1 hoạt động |
+| Itinerary.title | str | Ít nhất 1 ký tự |
+| Itinerary.destination_city | Literal | Paris, Lyon hoặc Strasbourg |
+| Itinerary.days | list[TripDay] | 2–7 ngày |
+| total_estimated_cost_eur | property float | Tổng chi phí mọi hoạt động, tính lại khi đọc; không là trường JSON mặc định |
 
-Luồng ngày: đầu vào → Pydantic chuyển thành `date` → field validator kiểm tra không trong quá khứ → model validator kiểm tra hai thành phố. Model validator `mode="after"` chỉ chạy khi các trường đã hợp lệ.
+model_json_schema() tạo mô tả cấu trúc; model_validate_json() đọc và xác thực phản hồi; model_dump_json(indent=2) xuất dữ liệu.
+stdout chứa cả thông báo thành công, JSON và tổng tiền, không phải một tài liệu JSON thuần.
+Tổng tiền chưa gồm đầy đủ khách sạn, vận chuyển hoặc dự phòng. Dùng float, chưa có quy tắc làm tròn tiền riêng.
 
-## 5. Edge cases — bảng trường hợp biên
+## 5. Đối chiếu dữ liệu và edge cases
 
-| Nhóm | Đầu vào / trường hợp | Kết quả mong đợi | Đã kiểm thử |
-| --- | --- | --- | --- |
-| Thời lượng | 1 và 8 | Từ chối tại duration_days | Có |
-| Thời lượng | Mọi giá trị nguyên 2–7 | Chấp nhận; ngày về đúng | Có |
-| Số người | 0, -1 / 1 | Từ chối / chấp nhận | Có |
-| Ngân sách | 0, -100 / 1 | Từ chối / chấp nhận | Có |
-| Ngày | Hôm nay | Chấp nhận | Có |
-| Ngày | Ngày quá khứ dạng date và ISO | Từ chối tại departure_day | Có |
-| Ngày | ISO hợp lệ trong tương lai | Chuyển sang date và chấp nhận | Có |
-| Ngày | `not-a-date`, `2030-02-30`, chuỗi rỗng, None | ValidationError tại departure_day | Có |
-| Điểm xuất phát | Chuỗi rỗng hoặc chỉ dấu cách | Từ chối sau strip | Có |
-| Điểm đến | Paris, Lyon, Strasbourg | Chấp nhận | Có |
-| Điểm đến | Berlin, Moscow, London, chuỗi rỗng, dấu cách | Từ chối | Có |
-| Trùng thành phố | Paris / PARIS / Paris có khoảng trắng so với Paris | Từ chối toàn model | Có |
-| Chuẩn hóa thành phố | Bourges/Paris có khoảng trắng hai đầu | Giữ tên sau strip | Có |
-| Sở thích | Bỏ trường / None / rỗng / dấu cách / tab, xuống dòng | None | Có |
-| Sở thích | Văn bản có khoảng trắng hai đầu | Bỏ khoảng trắng, giữ nội dung | Có |
-| Sở thích | 1.000 / 1.001 chữ a | Chấp nhận / từ chối | Có |
-| Ngày về | 31/01, chuyến 3 ngày | 02/02 cùng năm | Có, năm tương lai |
-| Ngày về | 31/12, chuyến 3 ngày | 02/01 năm sau | Có, năm tương lai |
+| Trường hợp | Hành vi |
+| --- | --- |
+| Thiếu/rỗng GROQ_API_KEY | ValueError trước khi tạo client; cli báo lỗi, exit 1 |
+| Thiếu file | FileNotFoundError được cli bắt |
+| JSON fixture sai cú pháp | JSONDecodeError được cli bắt |
+| Nội dung API None hoặc chuỗi rỗng | ValueError; không chấp nhận là lịch trình |
+| JSON đầu ra sai hoặc thiếu trường | Pydantic ValidationError; cli báo lỗi schema, exit 1 |
+| Chi phí 0 | Hợp lệ, hỗ trợ hoạt động miễn phí |
+| Chi phí âm/NaN/vô cực | Bị từ chối |
+| Thời lượng 0/âm; danh sách hoạt động rỗng | Bị từ chối |
+| 1 hoặc 8 ngày | Bị từ chối; 2 và 7 là biên hợp lệ |
+| Điểm đến hoặc ngày khác fixture | ValueError |
+| Hoạt động thiếu/thêm/lặp/thay đổi | Counter đối chiếu tuple tên, địa điểm, thời lượng, chi phí; sai thì ValueError |
+| Timeout/mất kết nối | Bắt APITimeoutError/APIConnectionError; không tự retry |
+| HTTP 401/403/429 | Thông báo riêng cho xác thực, từ chối và quota |
+| HTTP khác, gồm 500 | Thông báo mã HTTP; không in nguyên body lỗi từ Groq |
+| Luồng thành công | Không SystemExit lỗi; cli trả None, tiến trình kết thúc bình thường |
 
-## 6. Acceptance criteria — tiêu chí nghiệm thu và test tương ứng
+Counter không ràng buộc thứ tự hoạt động hoặc hoạt động thuộc ngày cụ thể.
+Chuỗi chỉ chứa khoảng trắng chưa bị từ chối bởi min_length=1. Model chưa strict về ép kiểu và chưa cấm trường extra.
+Ngày liên tiếp, hoạt động chồng giờ, giờ mở cửa, di chuyển và tính khả thi chỉ được đề cập trong prompt hoặc chưa triển khai; chưa có kiểm tra Python bảo đảm.
 
-Mỗi hàng dưới đây tương ứng một phương thức thuộc `TestTravelPreferences` trong `tests/test_models.py`. Trạng thái khi đối chiếu: **tất cả đạt**.
+## 6. Performance constraints và bảo mật
 
-| ID | Tiêu chí nghiệm thu | Test bằng chứng |
+| Ràng buộc | Cấu hình / mức bảo đảm |
+| --- | --- |
+| Lời gọi | Một create() trong luồng hợp lệ; không vòng lặp sửa lịch trình |
+| Timeout | 30 giây ở SDK sinh lịch trình; không cam kết tổng tiến trình kết thúc chính xác trong 30 giây |
+| Retry | max_retries=0 |
+| Token | max_completion_tokens=2048; không phải số từ; đầu ra bị cắt có thể thất bại validation |
+| Kết nối thử | check_groq.py timeout 20 giây, không tự retry |
+| Môi trường | Python trong Ubuntu WSL, dependency khóa ở requirements.txt; không cài thêm ngoài nhu cầu |
+| Key | Nhập ẩn vào biến môi trường; không đọc .env tự động; test dùng key giả |
+| Kiểm thử | Mock Groq và file; không tiêu quota API |
+| Chưa đo | Thời gian sinh trung bình, chất lượng tiếng Việt, tải đồng thời, tỷ lệ API thành công và chi phí production |
+
+## 7. Acceptance criteria
+
+| ID | Tiêu chí nghiệm thu | Kiểm chứng |
 | --- | --- | --- |
-| AC01 | Tạo được chuyến hợp lệ, giữ đúng dữ liệu, sở thích mặc định None, ngày về đúng. | `test_valid_input` |
-| AC02 | Từ chối 1 và 8 ngày; lỗi chỉ tại duration_days. | `test_rejection_invalid_duration` |
-| AC03 | Chấp nhận từng số ngày 2–7, tính đúng ngày về từng lượt subTest. | `test_accept_valid_duration` |
-| AC04 | Từ chối 0 và -1 người; lỗi chỉ tại num_adults. | `test_reject_invalid_num_adults` |
-| AC05 | Từ chối ngân sách 0 và -100; lỗi chỉ tại total_budget_eur. | `test_reject_invalid_budget` |
-| AC06 | Từ chối ngày quá khứ dạng date. | `test_reject_past_departure` |
-| AC07 | Từ chối cùng thành phố, không phân biệt hoa–thường và khoảng trắng hai đầu; lỗi toàn model. | `test_reject_same_cities` |
-| AC08 | Từ chối điểm xuất phát rỗng hoặc chỉ dấu cách. | `test_empty_origin_city` |
-| AC09 | Từ chối điểm đến ngoài phạm vi và điểm đến rỗng. | `test_reject_invalid_destination` |
-| AC10 | Sở thích rỗng, dấu cách, tab/xuống dòng hoặc None thành None. | `test_normalize_empty_additional_preferences` |
-| AC11 | Sở thích 1.000 ký tự được giữ, 1.001 ký tự bị từ chối đúng trường. | `test_preferences_limit_length` |
-| AC12 | Ngày đi hôm nay hợp lệ và ngày về đúng. | `test_accept_departure_today` |
-| AC13 | Cả Paris, Lyon và Strasbourg đều được chấp nhận. | `test_accept_supported_destinations` |
-| AC14 | Bỏ khoảng trắng hai đầu tên xuất phát và điểm đến. | `test_strip_city_names` |
-| AC15 | Bỏ khoảng trắng hai đầu sở thích và giữ nội dung. | `test_strip_preferences` |
-| AC16 | Chấp nhận 1 người và tổng ngân sách 1 EUR. | `test_accept_minimum_adults_and_budget` |
-| AC17 | Ngày về đúng khi đi qua cuối tháng và cuối năm. | `test_return_date_across_boundaries` |
-| AC18 | Chuyển ngày tương lai dạng ISO sang date, giữ đúng ngày và ngày về. | `test_accept_departure_iso_string` |
-| AC19 | Ngày sai/rỗng/None tạo ValidationError đúng trường. | `test_reject_invalid_departure_values` |
-| AC20 | Chuỗi ISO ngày quá khứ tạo lỗi tại departure_day với type value_error. | `test_reject_past_departure_iso_string` |
+| AC01 | Gọi model thật thành công với key ngoài code | Người học đã xác nhận check_groq.py |
+| AC02 | Định nghĩa đủ ba model lồng nhau và ràng buộc bảng schema | 46 test model đạt, gồm test hồi quy đầu vào |
+| AC03 | Tính tổng nhiều ngày/hoạt động, gồm hoạt động miễn phí | Test tổng tiền, thay đổi chi phí và zero float |
+| AC04 | Trả JSON theo schema và validate thành Itinerary | Test JSON round-trip, schema sai; lần gọi thật do người học xác nhận |
+| AC05 | Giữ đúng điểm đến/ngày và mỗi hoạt động đúng số lần | Test sai dữ liệu, thiếu/lặp/thêm/sửa |
+| AC06 | Fixture mẫu hiện tại tạo tổng 45 EUR | Test offline luồng thành công và xác nhận lần gọi thật |
+| AC07 | Lỗi dự kiến được báo có kiểm soát, exit 1 | Test CLI ValueError, ValidationError, file/JSON, timeout, kết nối, HTTP |
+| AC08 | Luồng thành công không thoát lỗi | test_cli_success |
+| AC09 | Không tự retry, không vòng lặp vô hạn | Kiểm tra cấu hình client và create gọi một lần |
+| AC10 | Không in traceback tự động hoặc body HTTP nhạy cảm ở nhánh đã bắt | Test stdout/stderr và chuỗi bí mật giả trong HTTP error |
+| AC11 | Tái chạy offline không cần key thật | 18 test bằng mock, 46 test model |
+| AC12 | Tài liệu và dependency phản ánh môi trường | README.md, requirements.txt, pip check |
 
-## 7. Cách xác minh và ràng buộc hiệu năng
+AC10 không phải bảo đảm che mọi bí mật tùy ý trong mọi exception; ValueError hiện in nội dung thông báo của ứng dụng.
+Không chạy API thật lần nữa chỉ để viết SPEC; bằng chứng online là kết quả người học đã cung cấp trong phiên.
 
-Chạy trong Ubuntu WSL tại dự án chính, không cần API key:
+## 8. File và cách kiểm chứng
+
+| File | Vai trò |
+| --- | --- |
+| src/travel_planner/models.py | Schema dùng chung và property |
+| tests/fixtures/paris_sample.json | Dữ liệu giả lập cố định |
+| generate_itinerary.py | Prompt hiện nằm trực tiếp trong main; gọi model, validation, CLI |
+| tests/test_generate_itinerary.py | 18 test main/CLI offline |
+| tests/test_models.py | 46 test model |
+| check_groq.py / check_itinerary.py | Kiểm tra kết nối thật / model mẫu |
+| tests/test_api.py | Script thủ công gọi API danh sách model; không phải test offline |
+| README.md / requirements.txt | Hướng dẫn và phiên bản dependency |
+
+Chạy tại /home/quy/projects/travel-planner:
 
 ```bash
-cd /home/quy/projects/travel-planner
 source .venv/bin/activate
-PYTHONPATH=src:.:tests python -m unittest test_models.TestTravelPreferences -v
-```
-
-Lệnh này chọn đúng **20 test Chặng 1**, kể cả khi file test_models.py có thêm test Chặng 2. Kết quả nghiệm thu mong đợi: `Ran 20 tests` và `OK`.
-
-Kiểm tra hồi quy offline hiện có của cả dự án:
-
-```bash
 PYTHONPATH=src:. python -m unittest discover -s tests -p test_models.py -v
 PYTHONPATH=src:. python -m unittest discover -s tests -p test_generate_itinerary.py -v
 python -m pip check
+git diff --check
 ```
 
-Kết quả đối chiếu 13/11/2026: 46 test model + 18 test tạo lịch trình/CLI = **64 test offline đạt**. Không chạy discovery không lọc: `tests/test_api.py` là script mạng thủ công và chạy khi import; không thuộc test offline Chặng 1. Không gọi Groq/Tavily để nghiệm thu Chặng 1.
+Không discovery toàn bộ tests khi muốn offline vì tests/test_api.py gọi mạng ngay khi import.
+Chạy thật sau khi cấu hình key: PYTHONPATH=src python generate_itinerary.py.
 
-| Ràng buộc | Tình trạng |
-| --- | --- |
-| Không phụ thuộc dịch vụ ngoài khi kiểm tra đầu vào | Đã đáp ứng; 20 test chạy cục bộ không cần API key. |
-| Không phát sinh chi phí LLM từ Chặng 1 | Không có lời gọi LLM trong model và test đầu vào. |
-| Chặn sở thích sau chuẩn hóa vượt 1.000 ký tự | Đã có Field max_length và test hai biên; không phải giới hạn kích thước request thô trước xử lý. |
-| Thời gian phản hồi, RAM, tải đồng thời | Chưa có mục tiêu định lượng hoặc benchmark; không công bố số hiệu năng từ thời gian unittest. |
-| Khả năng tái chạy | Dependency ghi trong requirements.txt; test ngày dùng thời gian tương đối. Kết quả vẫn phụ thuộc ngày/múi giờ hệ điều hành. |
+## 9. Ngoài phạm vi Chặng 2
 
-## 8. Giới hạn và phần chưa nghiệm thu
-
-| Nội dung | Trạng thái / tác động |
-| --- | --- |
-| Xác minh điểm xuất phát trong châu Âu | Chưa có dữ liệu địa lý hoặc validator thực thi. Tên không rỗng không đồng nghĩa là thành phố hợp lệ. |
-| Kiểm tra ngân sách đủ cho chuyến đi | Chưa làm ở Chặng 1. Chưa cộng vé, lưu trú, ăn uống, dự phòng 10% hoặc kiểm chứng giá. |
-| Ba phương án, tìm kiếm nguồn, agent, web, đặt dịch vụ | Ngoài phạm vi nghiệm thu Chặng 1. |
-| Tên departure_date trong thiết kế cũ | Code dùng departure_day. Không có alias; người dùng code phải dùng tên thực tế. |
-| Kiểu dữ liệu nghiêm ngặt | Chưa bật strict mode; chưa có test phủ mọi trường hợp bool, số thực, chuỗi số hoặc ép kiểu. |
-| Trường dư, thay đổi thuộc tính sau khi tạo | Chưa định nghĩa chính sách riêng hoặc có test nghiệm thu; không cam kết cấm sửa hay tự validation lại mỗi lần gán. |
-| Ngày giới hạn datetime, múi giờ nghiệp vụ | Chưa xử lý date.max/overflow và chưa cố định timezone riêng cho ứng dụng. date.today() lấy ngày hệ điều hành. |
-| Bao phủ còn thiếu | Chưa có test đầu vào thiếu từng trường bắt buộc, serialize riêng TravelPreferences, năm nhuận hoặc fuzz/property-based. 20 test đạt không có nghĩa bao phủ mọi dữ liệu có thể nhập. |
-| Chặng 2 trong cùng repo | Activity/TripDay/Itinerary, Groq và CLI có đặc tả/kiểm thử riêng; không được tính là thành quả Task 03–04. |
-
-## 9. Kết luận nghiệm thu Chặng 1
-
-Task 03 tạo được lớp dữ liệu đầu vào có chuẩn hóa và ràng buộc rõ; Task 04 cung cấp 20 test hồi quy kiểm chứng các quy tắc và trường hợp biên đã liệt kê. Có thể dùng TravelPreferences làm đầu vào cho các chặng tiếp theo trong các giới hạn trên. SPEC ghi hành vi hiện có, không tự mở rộng kiến trúc hoặc bổ sung tính năng chưa được triển khai.
+Chưa có nghiên cứu Tavily, nguồn giá thực, tool calling, vòng lặp agent, Supervisor, Evaluator đầy đủ, ba phương án tối ưu, Streamlit, đặt dịch vụ hoặc triển khai production.
+Prompt chưa tách ra prompts/ theo cấu trúc dài hạn của rule.md. Bộ xử lý lỗi chưa cam kết bắt lỗi lập trình hoặc fixture có cấu trúc tùy ý.
